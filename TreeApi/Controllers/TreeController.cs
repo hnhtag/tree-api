@@ -5,12 +5,12 @@ using TreeApi.Services;
 namespace TreeApi.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/tree")]
     public class TreeController(TreeService service) : ControllerBase
     {
         private readonly TreeService _service = service;
 
-        [HttpGet("tree")]
+        [HttpGet]
         public async Task<IActionResult> GetTree([FromQuery] Guid? parentId)
         {
             if (parentId == null)
@@ -26,15 +26,7 @@ namespace TreeApi.Controllers
             }
         }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> Get(Guid id)
-        {
-            var node = await _service.GetByIdAsync(id);
-            if (node == null) return NotFound();
-            return Ok(node);
-        }
-
-        [HttpPost]
+        [HttpPost("node")]
         public async Task<IActionResult> Create([FromBody] NodeCreateDto node)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -43,7 +35,15 @@ namespace TreeApi.Controllers
             return CreatedAtAction(nameof(Get), new { id = created.Id }, created);
         }
 
-        [HttpPut("{id}")]
+        [HttpGet("node/{id}")]
+        public async Task<IActionResult> Get(Guid id)
+        {
+            var node = await _service.GetByIdAsync(id);
+            if (node == null) return NotFound();
+            return Ok(node);
+        }
+
+        [HttpPut("node/{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] NodeUpdateDto node)
         {
             if (id != node.Id) return BadRequest("Id mismatch");
@@ -55,7 +55,7 @@ namespace TreeApi.Controllers
             return NoContent();
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("node/{id}")]
         public async Task<IActionResult> Delete(Guid id)
         {
             var deleted = await _service.DeleteAsync(id);
