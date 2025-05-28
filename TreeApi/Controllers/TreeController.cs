@@ -11,8 +11,15 @@ namespace TreeApi.Controllers
         private readonly TreeService _service = service;
 
         [HttpGet]
-        public async Task<IActionResult> GetTree([FromQuery] Guid? parentId)
+        public async Task<IActionResult> GetTree(Guid? parentId, bool? eager)
         {
+            if (eager == true)
+            {
+                var fullTree = await _service.GetFullTreeAsync();
+                if (fullTree == null) return NotFound();
+                return Ok(fullTree);
+            }
+
             if (parentId == null)
             {
                 var tree = await _service.GetRootTreeAsync();

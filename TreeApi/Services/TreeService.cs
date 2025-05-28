@@ -33,6 +33,28 @@ namespace TreeApi.Services
             return parent == null ? null : _mapper.Map<NodeDto>(parent);
         }
 
+        public async Task<List<NodeDto>> GetFullTreeAsync()
+        {
+            var allNodes = await _context.TreeNodes.AsNoTracking().ToListAsync();
+
+            // group by ParentId
+            var nodeLookup = allNodes.ToLookup(n => n.ParentId);
+
+            List<NodeDto> BuildTree(Guid? parentId)
+            {
+                return [.. nodeLookup[parentId]
+                    .Select(n => new NodeDto
+                    {
+                        Id = n.Id,
+                        Name = n.Name,
+                        HasChildren = nodeLookup[n.Id].Any(),
+                        Children = BuildTree(n.Id)
+                    })];
+            }
+
+            return BuildTree(null);
+        }
+
         public async Task<Node?> GetByIdAsync(Guid id)
         {
             return await _context.TreeNodes.AsQueryable().AsNoTracking().Where(n => n.Id == id).FirstOrDefaultAsync();
