@@ -6,7 +6,7 @@ using TreeApi.Data;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite("Data Source=Tree.db"));
-
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<TreeService>();
 builder.Services.AddAutoMapper(typeof(TreeProfile));
 

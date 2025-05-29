@@ -1,15 +1,19 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using TreeApi.Data;
 using TreeApi.DTOs;
 using TreeApi.Models;
 
 namespace TreeApi.Services
 {
-    public class TreeService(AppDbContext context, IMapper mapper)
+    public class TreeService(AppDbContext context, IMapper mapper, IMemoryCache cache)
     {
         private readonly AppDbContext _context = context;
         private readonly IMapper _mapper = mapper;
+        private readonly IMemoryCache _cache = cache;
+
+        const string cacheKey = "FlatNodeList";
 
         public async Task<List<NodeDto>> GetRootTreeAsync()
         {
@@ -19,7 +23,7 @@ namespace TreeApi.Services
                 .ThenInclude(c => c.Children)
                 .ToListAsync();
 
-            return _mapper.Map<List<NodeDto>>(roots);
+            return [.. roots.Select(r => NodeDto.FromEntity(r, _context))];
         }
 
         public async Task<NodeDto?> GetSubTreeAsync(Guid parentId)
@@ -30,13 +34,12 @@ namespace TreeApi.Services
                 .ThenInclude(c => c.Children)
                 .FirstOrDefaultAsync();
 
-            return parent == null ? null : _mapper.Map<NodeDto>(parent);
+            return parent == null ? null : NodeDto.FromEntity(parent, _context);
         }
 
         public async Task<List<NodeDto>> GetFullTreeAsync()
         {
-            var allNodes = await _context.TreeNodes.AsNoTracking().ToListAsync();
-
+            var allNodes = await GetCachedNodesAsync() ?? throw new Exception("Err getting nodes");
             // group by ParentId
             var nodeLookup = allNodes.ToLookup(n => n.ParentId);
 
@@ -66,6 +69,9 @@ namespace TreeApi.Services
 
             _context.TreeNodes.Add(node);
             await _context.SaveChangesAsync();
+
+            _cache.Remove(cacheKey);
+
             return node;
         }
 
@@ -79,6 +85,9 @@ namespace TreeApi.Services
 
             _context.TreeNodes.Update(existing);
             await _context.SaveChangesAsync();
+
+            _cache.Remove(cacheKey);
+
             return true;
         }
 
@@ -93,6 +102,9 @@ namespace TreeApi.Services
             DeleteNodeAndChildren(node);
 
             await _context.SaveChangesAsync();
+
+            _cache.Remove(cacheKey);
+
             return true;
         }
 
@@ -103,6 +115,21 @@ namespace TreeApi.Services
                 DeleteNodeAndChildren(child);
             }
             _context.TreeNodes.Remove(node);
+        }
+
+        private async Task<List<Node>?> GetCachedNodesAsync()
+        {
+            if (!_cache.TryGetValue(cacheKey, out List<Node>? cachedNodes))
+            {
+                cachedNodes = await _context.TreeNodes.AsNoTracking().ToListAsync();
+
+                _cache.Set(cacheKey, cachedNodes, new MemoryCacheEntryOptions
+                {
+                    SlidingExpiration = TimeSpan.FromMinutes(10)
+                });
+            }
+
+            return cachedNodes;
         }
     }
 }
